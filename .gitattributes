@@ -1,6 +1,10 @@
-# Windows scripts must keep CRLF line endings: cmd.exe misparses .bat files with
-# LF endings, and this keeps a clone correct whatever the user's git settings.
-*.bat  text eol=crlf
+# .bat files are stored byte-for-byte with CRLF line endings (-text = no
+# conversion). cmd.exe can misparse LF-only batch files, and GitHub's
+# "Download ZIP" does not apply eol conversion, so the CRLF has to live in the
+# repository itself.
+*.bat  -text
+
+# PowerShell and VBScript handle either ending; check out as CRLF on Windows.
 *.ps1  text eol=crlf
 *.vbs  text eol=crlf
 
