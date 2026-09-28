@@ -1,0 +1,10 @@
+# Runtime output (the watchdog's own logs live in %LOCALAPPDATA%, not here)
+*.log
+_last-run.log
+logs/
+
+# Pause flag, created by pause.bat while the watchdog is paused
+PAUSE.txt
+
+# Local leftovers
+backup/

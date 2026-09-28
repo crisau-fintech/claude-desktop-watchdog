@@ -1,0 +1,8 @@
+# Windows scripts must keep CRLF line endings: cmd.exe misparses .bat files with
+# LF endings, and this keeps a clone correct whatever the user's git settings.
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+*.vbs  text eol=crlf
+
+*.md   text
+LICENSE text
