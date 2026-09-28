@@ -6,5 +6,11 @@ logs/
 # Pause flag, created by pause.bat while the watchdog is paused
 PAUSE.txt
 
+# Release build output (tools/build-release.ps1)
+dist/
+
+# Maintainer's private working journal: kept locally, not published
+LOG.md
+
 # Local leftovers
 backup/

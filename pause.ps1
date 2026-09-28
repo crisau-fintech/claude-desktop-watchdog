@@ -23,5 +23,5 @@ if ($Hours -le 0) {
 $until = (Get-Date).AddHours($Hours)
 Set-Content -LiteralPath $PauseFile -Value $until.ToString('yyyy-MM-ddTHH:mm:ss') -Encoding ASCII
 Write-Host ("Watchdog paused until {0}." -f $until.ToString('yyyy-MM-dd HH:mm')) -ForegroundColor Yellow
-Write-Host 'Claude will not be relaunched until then. To resume earlier: resume.bat'
+Write-Host 'Claude will not be relaunched until then. To resume earlier: Start menu > Claude Watchdog > Resume'
 Write-Host ''

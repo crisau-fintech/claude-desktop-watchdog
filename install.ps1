@@ -1,30 +1,48 @@
 <#
     install.ps1
-    Registers the watchdog to start with Windows and starts it right away.
+    Installs the watchdog for the current user and starts it right away.
+
+    1. Copies the program to %LOCALAPPDATA%\Programs\ClaudeWatchdog, so the
+       downloaded folder can be deleted afterwards. The watchdog used to run
+       from wherever it was unzipped, and cleaning out Downloads silently broke
+       it; a fixed install location removes that trap.
+    2. Adds a "Claude Watchdog" folder to the Start menu with the everyday tools.
+    3. Registers a hidden launcher in the Startup folder and starts the watchdog.
 
     The Startup entry is a .vbs rather than a .bat because the .vbs can start
-    PowerShell with a hidden window: no console flashes up at sign-in. The .vbs
-    embeds the absolute path of claude-watchdog.ps1, so re-run this installer
-    whenever the project folder is moved.
+    PowerShell with a hidden window: no console flashes up at sign-in.
+    No admin rights needed: everything lives in the user's own profile.
 #>
 
 $ErrorActionPreference = 'Stop'
 
-$Root       = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$Script     = Join-Path $Root 'claude-watchdog.ps1'
+$Source     = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\ClaudeWatchdog'
+$Script     = Join-Path $InstallDir 'claude-watchdog.ps1'
 $StartupDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
 $Launcher   = Join-Path $StartupDir 'claude-watchdog.vbs'
+$MenuDir    = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Claude Watchdog'
+
+$ProgramFiles = @(
+    'claude-watchdog.ps1', 'common.ps1', 'install.ps1', 'uninstall.ps1',
+    'status.ps1', 'monitor.ps1', 'pause.ps1',
+    'install.bat', 'uninstall.bat', 'status.bat', 'live-monitor.bat',
+    'check-now.bat', 'pause.bat', 'resume.bat', 'open-log.bat',
+    'README.md', 'LICENSE'
+)
 
 Write-Host ''
 Write-Host '=== INSTALLING CLAUDE WATCHDOG ===' -ForegroundColor Cyan
 Write-Host ''
 
-if (-not (Test-Path -LiteralPath $Script)) {
-    Write-Host "ERROR: $Script not found" -ForegroundColor Red
-    exit 1
+foreach ($f in @('claude-watchdog.ps1', 'common.ps1')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $Source $f))) {
+        Write-Host "ERROR: $f is missing next to install.ps1. Extract the whole ZIP and try again." -ForegroundColor Red
+        exit 1
+    }
 }
 
-# 1) Stop any watchdog already running (e.g. from a previous install or folder)
+# 1) Stop any watchdog already running (previous install or another folder)
 $stopped = 0
 foreach ($p in @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe' OR Name='wscript.exe'" -ErrorAction SilentlyContinue)) {
     if ($p.ProcessId -eq $PID) { continue }
@@ -37,7 +55,47 @@ foreach ($p in @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR
 }
 Write-Host ("1. Previous watchdog processes stopped: {0}" -f $stopped)
 
-# 2) Write the hidden launcher into the Startup folder
+# 2) Copy the program to its permanent location (skipped when re-run from there)
+$sameFolder = [string]::Equals(
+    [IO.Path]::GetFullPath($Source).TrimEnd('\'),
+    [IO.Path]::GetFullPath($InstallDir).TrimEnd('\'),
+    [StringComparison]::OrdinalIgnoreCase)
+if (-not $sameFolder) {
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    foreach ($f in $ProgramFiles) {
+        $from = Join-Path $Source $f
+        if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $InstallDir -Force }
+    }
+}
+# Files unzipped from a download carry an "from the internet" mark that makes
+# Windows ask for confirmation on every double-click; the user already chose to
+# install, so clear it once here.
+Get-ChildItem -LiteralPath $InstallDir -File | Unblock-File -ErrorAction SilentlyContinue
+Write-Host ("2. Program installed in: {0}" -f $InstallDir)
+
+# 3) Start menu folder with the everyday tools
+if (Test-Path -LiteralPath $MenuDir) { Remove-Item -LiteralPath $MenuDir -Recurse -Force }
+New-Item -ItemType Directory -Path $MenuDir -Force | Out-Null
+$shell = New-Object -ComObject WScript.Shell
+$entries = [ordered]@{
+    'Status'             = 'status.bat'
+    'Live monitor'       = 'live-monitor.bat'
+    'Check now'          = 'check-now.bat'
+    'Pause for 2 hours'  = 'pause.bat'
+    'Resume'             = 'resume.bat'
+    'Open log'           = 'open-log.bat'
+    'Restart watchdog'   = 'install.bat'
+    'Uninstall'          = 'uninstall.bat'
+}
+foreach ($name in $entries.Keys) {
+    $lnk = $shell.CreateShortcut((Join-Path $MenuDir ($name + '.lnk')))
+    $lnk.TargetPath       = Join-Path $InstallDir $entries[$name]
+    $lnk.WorkingDirectory = $InstallDir
+    $lnk.Save()
+}
+Write-Host '3. Start menu folder created: Start > Claude Watchdog'
+
+# 4) Hidden launcher in the Startup folder
 $vbs = @"
 ' Claude Watchdog launcher. Generated by install.ps1 - do not edit by hand.
 ' The 0 in Run means "hidden window": no console is shown.
@@ -45,17 +103,20 @@ Set sh = CreateObject("WScript.Shell")
 sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$Script""", 0, False
 "@
 Set-Content -LiteralPath $Launcher -Value $vbs -Encoding ASCII
-Write-Host ("2. Startup launcher written: {0}" -f $Launcher)
+Write-Host '4. Set to start automatically with Windows.'
 
-# 3) Start it now instead of waiting for the next sign-in
+# 5) Start it now instead of waiting for the next sign-in
 Start-Process -FilePath 'powershell.exe' `
     -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
                     '-File', $Script, '-StartDelaySeconds', '0') `
     -WindowStyle Hidden
 Start-Sleep -Seconds 3
-Write-Host '3. Watchdog started.'
+Write-Host '5. Watchdog started.'
 
 Write-Host ''
-Write-Host 'DONE. The watchdog now starts automatically with Windows.' -ForegroundColor Green
-Write-Host 'Check it with status.bat or live-monitor.bat'
+Write-Host 'DONE. Claude Watchdog is running and will start with Windows.' -ForegroundColor Green
+Write-Host 'Everything you need is in: Start menu > Claude Watchdog'
+if (-not $sameFolder) {
+    Write-Host 'You can now delete the folder you downloaded; it is no longer needed.'
+}
 Write-Host ''

@@ -26,7 +26,7 @@ if ($running.Count -gt 0) {
     Write-Host ("Watchdog:     RUNNING (PID {0})" -f ($running[0].ProcessId)) -ForegroundColor Green
 } else {
     Write-Host 'Watchdog:     STOPPED' -ForegroundColor Red
-    Write-Host '              -> run install.bat to start it'
+    Write-Host '              -> Start menu > Claude Watchdog > Restart watchdog'
 }
 
 if (Test-Path -LiteralPath $Launcher) {
@@ -62,7 +62,7 @@ if (Test-Path -LiteralPath $StatusFile) {
             Write-Host ''
             Write-Host 'WARNING: the watchdog is running but has not checked in when expected.' -ForegroundColor Red
             Write-Host '         If the PC was not just woken from sleep, it may be stuck.' -ForegroundColor Red
-            Write-Host '         Run install.bat to restart it.' -ForegroundColor Red
+            Write-Host '         Use Start menu > Claude Watchdog > Restart watchdog.' -ForegroundColor Red
         }
     } catch { }
 }
